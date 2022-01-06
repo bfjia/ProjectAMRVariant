@@ -185,11 +185,12 @@ class RNAVariant(Variant):
 
         for snp in self.snp:
             relevantSNP = [x for x in pileup if x.startswith("{}\t{}\t".format(str(self.aro.aro), str(int(snp.position))))]
-            s = self.ParsePileupForSNPs(relevantSNP, snp)
-            if (s.IsIndel):
-                detectedIndels.extend(s)
-            else:
-                detectedSNPs.extend(s)
+            if (relevantSNP):
+                for s in self.ParsePileupForSNPs(relevantSNP, snp):
+                    if (s.IsIndel()):
+                        detectedIndels.append(s)
+                    else:
+                        detectedSNPs.append(s)
 
         self.SetDetectedSnp(detectedSNPs)
         self.SetDetectedIndel(detectedIndels)
@@ -237,39 +238,40 @@ class ProteinVariant(Variant):
             base2 = [x for x in pileup if x.startswith("{}\t{}\t".format(str(self.aro.aro), str(int(snp.position)*3-1)))]
             base3 = [x for x in pileup if x.startswith("{}\t{}\t".format(str(self.aro.aro), str(int(snp.position)*3)))]
             
-            base1Snp = {}
-            base2Snp = {}
-            base3Snp = {}
-            base1Indel = []
-            base2Indel = []
-            base3Indel = []
+            if (base1 and base2 and base3):
+                base1Snp = {}
+                base2Snp = {}
+                base3Snp = {}
+                base1Indel = []
+                base2Indel = []
+                base3Indel = []
 
-            for b in self.ParsePileupForSNPs(base1, snp):
-                if not b.IsIndel():
-                    base1Snp[b.mut] = b
-                else:
-                    base1Indel.append(b)
-            for b in self.ParsePileupForSNPs(base2, snp):
-                if not b.IsIndel():
-                    base2Snp[b.mut] = b
-                else:
-                    base2Indel.append(b)
-            for b in self.ParsePileupForSNPs(base3, snp):
-                if not b.IsIndel():
-                    base3Snp[b.mut] = b
-                else:
-                    base3Indel.append(b)
+                for b in self.ParsePileupForSNPs(base1, snp):
+                    if not b.IsIndel():
+                        base1Snp[b.mut] = b
+                    else:
+                        base1Indel.append(b)
+                for b in self.ParsePileupForSNPs(base2, snp):
+                    if not b.IsIndel():
+                        base2Snp[b.mut] = b
+                    else:
+                        base2Indel.append(b)
+                for b in self.ParsePileupForSNPs(base3, snp):
+                    if not b.IsIndel():
+                        base3Snp[b.mut] = b
+                    else:
+                        base3Indel.append(b)
 
-            detectedIndels.append([base1Indel, base2Indel, base3Indel])
+                detectedIndels.append([base1Indel, base2Indel, base3Indel])
 
-            combinations = list(itertools.product(*[base1Snp.keys(), base2Snp.keys(), base3Snp.keys()]))
-            for combo in combinations:
-                wt = snp.wt
-                codon = "".join(list(combo))
-                mut = str(Seq(codon).translate())
-                lowestDepth = int((base1Snp[codon[0]].depth+ base2Snp[codon[1]].depth+ base3Snp[codon[2]].depth)/3)
-                maxTotalDepth = max (base1Snp[codon[0]].totalDepth, base2Snp[codon[1]].totalDepth, base3Snp[codon[2]].totalDepth)
-                detectedSNPs.append(SNP(wt, mut, snp.position, lowestDepth, maxTotalDepth, codon))
+                combinations = list(itertools.product(*[base1Snp.keys(), base2Snp.keys(), base3Snp.keys()]))
+                for combo in combinations:
+                    wt = snp.wt
+                    codon = "".join(list(combo))
+                    mut = str(Seq(codon).translate())
+                    lowestDepth = int((base1Snp[codon[0]].depth+ base2Snp[codon[1]].depth+ base3Snp[codon[2]].depth)/3)
+                    maxTotalDepth = max (base1Snp[codon[0]].totalDepth, base2Snp[codon[1]].totalDepth, base3Snp[codon[2]].totalDepth)
+                    detectedSNPs.append(SNP(wt, mut, snp.position, lowestDepth, maxTotalDepth, codon))
 
         self.SetDetectedSnp(detectedSNPs)
         self.SetDetectedIndel(detectedIndels)

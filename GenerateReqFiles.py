@@ -98,7 +98,7 @@ class GenerateReqFiles:
 
     def GenerateVariantFiles(self):    
         if not os.path.isfile(self.__mpileupPath) or self.__OverWrite == True:
-            __CMD_Pileup = "samtools mpileup -AEvu -Q13 -d 99999 -f {} {} > {}".format(self.__referenceFastaPath, self.__SortedBAMPath, self.__mpileupPath)
+            __CMD_Pileup = "samtools mpileup -AE -Q13 -d 99999 -f {} {} > {}".format(self.__referenceFastaPath, self.__SortedBAMPath, self.__mpileupPath)
             self.__RunCMD(__CMD_Pileup)
         
             #for i in range(start, stop+1):

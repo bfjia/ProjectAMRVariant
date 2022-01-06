@@ -38,7 +38,7 @@ def main():
         type=str,
         help="output path for temp files",
     )
-
+    parser.add_argument("--overwrite", action="store_true", help="overwrite existing files.")
     args = parser.parse_args()
 
     
@@ -52,16 +52,15 @@ def main():
 
     CARD = ParseCardData.ParseJson(cardJsonPath) 
     proteinVariants, rnaVariants = ParseCardData.ParseSNP(cardSnpPath, CARD)
-    variantsCollection = proteinVariants + (rnaVariants)
+    variantsCollection = (rnaVariants) + proteinVariants
     #bowtie2 step.
 
     generator = GenerateReqFiles.GenerateReqFiles(forward, reverse, outputDir=args.temp)
 
-    generator.GenerateReferenceFasta(proteinVariants)
+    generator.GenerateReferenceFasta(variantsCollection)
     generator.Bowtie2Align()
     generator.SAMtoSortedBAM()
     generator.GenerateVariantFiles()
-
 
     vcfPath = "{}/variants.pileup".format(args.temp)
     with open(vcfPath, "r") as f:
@@ -72,3 +71,5 @@ def main():
         f.write("\n".join(output))
 
 main()
+
+
