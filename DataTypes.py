@@ -355,7 +355,7 @@ class ProteinVariant(Variant):
 #child of ProteinVariant class specific for Protein overexpression
 class ProteinOverexpressionVariant(ProteinVariant):
     def __init__(self, aro, snp, mutType):
-        ProteinVariant.__init__(self, aro, snp, mutType, "protein overexpression")
+        ProteinVariant.__init__(self, aro, snp, mutType, "protein overexpression variant")
 
 
 

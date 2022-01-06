@@ -12,7 +12,7 @@ def ParseVcfForVariants(variantCollection, vcfFile):
     tot = len(__variantCollection)
 
     output=[]
-    output.append("ARO\tMutationType\tClassification\tSNP\tDepth\tAbs_Support\t%_Support")
+    output.append("ARO\tVariantType\tMutationType\tClassification\tSNP\tDepth\tAbs_Support\t%_Support\tINFO")
     for variant in __variantCollection:
         #scan the VCF file for this variant and checks if it exists. 
         print(str(cur) + "/" + str(tot))
@@ -77,7 +77,7 @@ def ParseVcfForVariants(variantCollection, vcfFile):
                     counts[key] = str(counts[key])
                 countOut = counts[classification]
                 percentOut = percent[classification]
-                debug = ";".join([(str(x.mut) + str(x.depth)) for x in detectedSnp])
+                debug = ";".join([(str(x.mut) + ":" + str(x.depth)) for x in detectedSnp])
         else:
             totalDepth = 0
             countOut = ""
@@ -85,6 +85,7 @@ def ParseVcfForVariants(variantCollection, vcfFile):
             debug = ""
 
         out = "\t".join([str(variant.aro.aro), 
+                        str(variant.GetType()),
                         str(variant.mutType), 
                         classification, 
                         ";".join([str(x) for x in (variant.snp)]), 
