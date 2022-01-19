@@ -3,6 +3,7 @@ from subprocess import Popen, PIPE, TimeoutExpired
 import DataTypes
 from Bio import SeqIO
 from Bio.Alphabet import generic_dna
+import ParseVCF
 #samtools mpileup -AQ 0 -Evur gb|AL123456.3|-|2153888-2156111|ARO:3003392|Mycobacterium:1-10 -f ../../card/card/nucleotide_fasta_protein_variant_model.fasta protein.sorted.bam
 
 #fastaPath = "/mnt/f/OneDrive/ProjectAMRSAGE/AMR_Metagenome_Simulator-master/full/card/nucleotide_fasta_protein_variant_model.fasta"
@@ -25,6 +26,7 @@ class GenerateReqFiles:
         self.__SortedBAMPath = self.__outputDir + "/variants.sorted.bam"
         self.__mpileupPath = self.__outputDir + "/variants.pileup"
         self.__vcfPath = self.__outputDir + "/variants.vcf"
+        self.__resultPath = self.__outputDir + "/results.tsv"
 
         #self.__pileupPath = self.__outputDir + "/pileups"
         #self.__depthPath = self.__outputDir + "/depths"
@@ -57,7 +59,7 @@ class GenerateReqFiles:
             for variant in variantList:
                 fasta.append(">" + str(variant.aro.aro) + "\n" + variant.aro.dna)
             fasta = list(set(fasta))
-            with open(self.__referenceFastaPath, "a") as f:
+            with open(self.__referenceFastaPath, "w") as f:
                 f.write("\n".join(fasta))
             
             #genbank file
@@ -71,11 +73,11 @@ class GenerateReqFiles:
         else:
             print("using pre-existing reference file at {}".format(self.__referenceFastaPath))
 
-    def Bowtie2Align(self):
+    def Bowtie2Align(self, threads=8):
         if not os.path.isfile(self.__SAMPath) or self.__OverWrite == True:   
             __CMD_index = "bowtie2-build {} {} --seed 25041".format(self.__referenceFastaPath, self.__referenceIndex)
             self.__RunCMD(__CMD_index)
-            __CMD_align = "bowtie2 -x {} -1 {} -2 {} --no-unal --seed 25041 --very-sensitive > {}".format(self.__referenceIndex, self.__forwardPath, self.__reversePath, self.__SAMPath)
+            __CMD_align = "bowtie2 -x {} -1 {} -2 {} --no-unal --seed 25041 --very-sensitive --threads {} > {}".format(self.__referenceIndex, self.__forwardPath, self.__reversePath, str(threads), self.__SAMPath)
             self.__RunCMD(__CMD_align)
         else:
             print("using pre-existing SAM file at {}".format(self.__SAMPath))
@@ -96,9 +98,9 @@ class GenerateReqFiles:
         else:
             print("using pre-existing sorted BAM file at {}".format(self.__SortedBAMPath))
 
-    def GenerateVariantFiles(self):    
+    def GenerateVariantFiles(self, quality = 13):    
         if not os.path.isfile(self.__mpileupPath) or self.__OverWrite == True:
-            __CMD_Pileup = "samtools mpileup -AE -Q13 -d 99999 -f {} {} > {}".format(self.__referenceFastaPath, self.__SortedBAMPath, self.__mpileupPath)
+            __CMD_Pileup = "samtools mpileup -AE -Q {} -d 99999 -f {} {} > {}".format(str(quality), self.__referenceFastaPath, self.__SortedBAMPath, self.__mpileupPath)
             self.__RunCMD(__CMD_Pileup)
         
             #for i in range(start, stop+1):
@@ -112,4 +114,15 @@ class GenerateReqFiles:
             print("using pre-existing variant temp files at {}".format(self.__mpileupPath))
 
 
+    def GenerateUnfilteredVariantSummary(self, variantCollection):
+        print("Parsing the pileup for resistant variants...")
+        if not os.path.isfile(self.__resultPath) or self.__OverWrite == True:
+            with open(self.__mpileupPath, "r") as f:
+                vcfFile = f.readlines()
+
+            unfilteredResults = ParseVCF.ParseVcfForVariants(variantCollection, vcfFile)
+            with open (self.__resultPath, 'w') as f:
+                f.write("\n".join(unfilteredResults))
+        else:
+            print("using pre-existing unfiltered result file at {}".format(self.__mpileupPath))
 

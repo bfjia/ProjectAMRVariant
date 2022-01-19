@@ -1,5 +1,7 @@
+from enum import unique
 from Bio import SeqIO
 import os
+from DataTypes import AccuracyMetrics
 from GenerateReqFiles import GenerateReqFiles
 import ParseCardData
 import random
@@ -41,59 +43,212 @@ class Codon:
         val_list = list(self.__codonTable.values())   
         return(random.sample(val_list,1)[0])
 
-def GenerateFasta(proteinVariants, rnaVariants):
-        
-    codonTable = Codon()
-    types = ['wt', 'mut', 'other']
-    fasta = []
-    for i in range(len(types)):
-        random.seed(25041+i)
-        chosenSet = random.sample(proteinVariants, int(len(proteinVariants)/5))
+def GenerateProteinSyntheticFasta(variants):
+    #with open ("data.tsv", 'w') as f:
+    #    for v in proteinVariants:
+    #        f.write(v.Export())
+    #    for v in rnaVariants:
+    #        f.write(v.Export())
 
-        for seq in chosenSet:
+    #what do we want?
+    #lets say we spike in total 99 AMR genes. 33wt, 33res, 33other
+    #randomly choose 99 unique AROs.
+    #for wt: make sure the base is wt then insert it into fasta.
+    #for mut: make sure the base is mut then insert it
+    #   additional: ensure all mutation categories (i.e. fs, single, multi) are in there.  
+    #for other: make sure the base is not wt or mut then insert it. 
+
+
+    codonTable = Codon()
+    fasta = []
+    uniqueARO = list(set([x.aro.GetARO() for x in variants]))
+    if ("3003686" in uniqueARO):
+        uniqueARO.remove("3003686")
+    random.seed(25041)
+
+    variantMutationTypes = list(set([x.GetMutType() for x in variants]))
+
+    variantSets = {}
+    n = 40
+    random.shuffle(uniqueARO)
+    missing = 0
+
+    for type in variantMutationTypes:
+        variantSets[type] = []
+        for i in range(missing + int(n/len(variantMutationTypes))):
+            added = False
+            for aro in uniqueARO:
+                seqList = [x for x in variants if x.aro.GetARO() == aro]
+                #print(seq.GetMutType() + " : " + type)
+                for seq in seqList:
+                    if (seq.GetMutType() == type):
+                        variantSets[type].append(aro)
+                        uniqueARO.remove(aro)
+                        added = True
+                        break
+                if (added):
+                    break
+        if (len(variantSets[type]) != int(n/len(variantMutationTypes))):
+            for i in range(int(n/len(variantMutationTypes)) - len(variantSets[type])):
+                added = False
+                for aro in uniqueARO:
+                    seqList = [x for x in variants if x.aro.GetARO() == aro]
+                    #print(seq.GetMutType() + " : " + type)
+                    for seq in seqList:
+                        if (seq.GetMutType() == "Single"):
+                            variantSets[type].append(aro)
+                            uniqueARO.remove(aro)
+                            added = True
+                            break
+                    if (added):
+                        break
+    variantSets["wt"] = uniqueARO[-n:]
+    del uniqueARO[-n:]
+    variantSets["other"] = uniqueARO[-n:]
+    del uniqueARO[-n:]
+
+    for type in variantSets.keys():
+        for aro in variantSets[type]:
+            variantObjects = [x for x in variants if x.aro.GetARO() == aro]
+            if (type == "wt"):
+                #take the first object with given ARO
+                seq = variantObjects[0]
+            elif (type == "other"):
+                #again, take the first object with given ARO
+                seq = variantObjects[0]
+            else:
+                #mutants, scan through objects until the muttype matches, return that match
+                for vo in variantObjects:
+                    if (vo.GetMutType() == type):
+                        seq = vo
+                        break
+            
             dna = seq.aro.dna
             mutType = seq.mutType
-            header = ">" + str(seq.aro.aro) + "|protein|" + types[i] + "|" + str(mutType) + "|"
+            if (type == "wt"):
+                label = "wt"
+            elif (type == "other"):
+                label = "other"
+            else:
+                label = "mut"
+            header = ">" + str(seq.aro.aro) + "|protein|" + label + "|" + str(mutType) + "|"
 
             for snp in seq.snp:
-                if (types[i] == 'wt'):
+                if (type == 'wt'):
                     replacement = codonTable.AAtoDNA(snp.wt)
-                elif (types[i] == 'mut'):
-                    if (snp.mut == "fs"):
-                        replacement = codonTable.AAtoDNA(snp.wt)
-                    else:
-                        replacement = codonTable.AAtoDNA(snp.mut)
-                elif (types[i] == 'other'):
+                elif (type == 'other'):
                     aa = codonTable.GetRandomAA()
                     while (aa == snp.mut or aa == snp.wt):
                         aa = codonTable.GetRandomAA()
                     replacement = codonTable.AAtoDNA(aa)
+                else: # (type == 'mut'):
+                    if (snp.mut == "fs"):
+                        replacement = codonTable.AAtoDNA(snp.wt)
+                    elif (snp.mut == "*"):
+                        replacement = codonTable.AAtoDNA("STOP")
+                    else:
+                        replacement = codonTable.AAtoDNA(snp.mut)
+
                 dna = mutType.GenerateSyntheticDNAForProtein(dna, replacement, snp.position)
                 header = header + str(snp.position) + ":" + codonTable.DNAtoAA(replacement) + ";"
             fasta.append(header + "\n" + dna) 
     with open ("SyntheticProteinVariants.fasta", "w") as f:
         f.write("\n".join(fasta))
 
-    types = ['wt', 'mut', 'other']
-    fasta = []
-    for i in range(len(types)):
-        random.seed(25041+i)
-        chosenSet = random.sample(rnaVariants, int(len(rnaVariants)/5))
+def GenerateRRNASyntheticFasta(variants):
 
-        for seq in chosenSet:
+
+    #what do we want?
+    #lets say we spike in total 99 AMR genes. 33wt, 33res, 33other
+    #randomly choose 99 unique AROs.
+    #for wt: make sure the base is wt then insert it into fasta.
+    #for mut: make sure the base is mut then insert it
+    #   additional: ensure all mutation categories (i.e. fs, single, multi) are in there.  
+    #for other: make sure the base is not wt or mut then insert it. 
+
+    codonTable = Codon()
+    fasta = []
+    uniqueARO = list(set([x.aro.GetARO() for x in variants]))
+    if ("3003686" in uniqueARO):
+        uniqueARO.remove("3003686")
+    random.seed(25041)
+
+    variantMutationTypes = list(set([x.GetMutType() for x in variants]))
+
+    variantSets = {}
+    n = 40
+    random.shuffle(uniqueARO)
+    missing = 0
+
+    for type in variantMutationTypes:
+        variantSets[type] = []
+        for i in range(missing + int(n/len(variantMutationTypes))):
+            added = False
+            for aro in uniqueARO:
+                seqList = [x for x in variants if x.aro.GetARO() == aro]
+                #print(seq.GetMutType() + " : " + type)
+                for seq in seqList:
+                    if (seq.GetMutType() == type):
+                        variantSets[type].append(aro)
+                        uniqueARO.remove(aro)
+                        added = True
+                        break
+                if (added):
+                    break
+        if (len(variantSets[type]) != int(n/len(variantMutationTypes))):
+            for i in range(int(n/len(variantMutationTypes)) - len(variantSets[type])):
+                added = False
+                for aro in uniqueARO:
+                    seqList = [x for x in variants if x.aro.GetARO() == aro]
+                    #print(seq.GetMutType() + " : " + type)
+                    for seq in seqList:
+                        if (seq.GetMutType() == "Single"):
+                            variantSets[type].append(aro)
+                            uniqueARO.remove(aro)
+                            added = True
+                            break
+                    if (added):
+                        break
+    variantSets["wt"] = uniqueARO[-n:]
+    del uniqueARO[-n:]
+    variantSets["other"] = uniqueARO[-n:]
+    del uniqueARO[-n:]
+
+    for type in variantSets.keys():
+        for aro in variantSets[type]:
+            variantObjects = [x for x in variants if x.aro.GetARO() == aro]
+            if (type == "wt"):
+                #take the first object with given ARO
+                seq = variantObjects[0]
+            elif (type == "other"):
+                #again, take the first object with given ARO
+                seq = variantObjects[0]
+            else:
+                #mutants, scan through objects until the muttype matches, return that match
+                for vo in variantObjects:
+                    if (vo.GetMutType() == type):
+                        seq = vo
+                        break
+            
             dna = seq.aro.dna
             mutType = seq.mutType
-            header = ">" + str(seq.aro.aro) + "|rna|" + types[i] + "|" + str(mutType) + "|"
+            if (type == "wt"):
+                label = "wt"
+            elif (type == "other"):
+                label = "other"
+            else:
+                label = "mut"
+            header = ">" + str(seq.aro.aro) + "|rna|" + label + "|" + str(mutType) + "|"
 
             for snp in seq.snp:
-                if (types[i] == 'wt'):
+                if (type == 'wt'):
                     replacement = snp.wt
-                elif (types[i] == 'mut'):
-                    replacement = snp.mut
-                elif (types[i] == 'other'):
+                elif (type == 'other'):
                     replacement = "A"
                     while (replacement == snp.mut or replacement == snp.wt):
                         replacement = random.sample(["A","T","G","C"],1)[0]
+                else:
+                    replacement = snp.mut
                 header = header + str(snp.position) + ":" +replacement + ";"
                 dna = mutType.GenerateSyntheticDNAForRNA(dna, replacement, snp.position)
         
@@ -104,17 +259,18 @@ def GenerateFasta(proteinVariants, rnaVariants):
                 #originalAA = codonTable.DNAtoAA(originalDNA)
                 #dna = dna[:start] + codon + dna[end:]
             fasta.append(header + "\n" + dna)
-    with open ("SyntheticRNAVariants.fasta", "w") as f:
+
+    with open ("SyntheticRRnaVariants.fasta", "w") as f:
         f.write("\n".join(fasta))
 
-def CheckAccuracy(resultPath, fastaPath):
-    with open(resultPath, "r") as f:
-        variants = f.readlines()
+def CheckAccuracy(resultTable, fastaPath):
+    variants = resultTable
     
     with open(fastaPath, 'r') as f:
         fasta = f.readlines()
-    fasta = [x for x in fasta if x.startswith(">")]
-    
+    fasta = [x for x in fasta if (x.startswith(">") and x.find("other") == -1)]
+    #variants = [x for x in variants if (x.find("Resistant") > -1)]
+
     referenceVariants = {}
     for line in fasta:
         l = line.strip().replace(">","").split("|")
@@ -127,69 +283,110 @@ def CheckAccuracy(resultPath, fastaPath):
         else:
             referenceVariants[aro] = []
             referenceVariants[aro].append([mutationType, mutationClass, snp])
-
+    
     detectedVariants = {}
     for line in variants:
         l = line.strip().split("\t")
         aro = l[0]
         mutationType = l[2]
-        mutationClass = l[1]
-        try:
-            snp = l[3]
-            #additional = l[5]
-        except:
-            snp = "None"
-            #additional = "None"
+        mutationClassification = l[3]
+        snp = l[4]
         if aro in detectedVariants.keys():
-            detectedVariants[aro].append([mutationType, mutationClass, snp])
+            detectedVariants[aro].append([mutationType, mutationClassification, snp])
         else:
             detectedVariants[aro] = []
-            detectedVariants[aro].append([mutationType, mutationClass, snp])
+            detectedVariants[aro].append([mutationType, mutationClassification, snp])
     
-    keyDictionary = {"wt": 0, "mut": 1, "other":2, 
-                    "Wildtype" : 0, "Resistant Variant" : 1, "Other Variant":2, "Not Found":3, "Partial":4}
-    keyDictionary = {"wt": 0, "mut": 1, "other":2, 
-                "Wildtype" : 0, "Resistant Variant" : 1, "Other Variant":2, "Not Found":3, "Partial":4}
+    keyDictionary = {"wt": 0, "mut": 1, "other":0, 
+                    "Wildtype" : 0, "Resistant Variant" : 1, "Other Variant":0, "Not Found":0, "Partial":0, "True":1, "False":0}
+
     matrix = np.zeros ((3, 5))
     matrixAro = np.empty((3,5), dtype=object)
+
+    matrixBinary = np.zeros((2,2))
+    matrixBinaryAro =  np.empty((2,2), dtype=object)
+    matrixBinaryAro[0,0] = ""
+    matrixBinaryAro[0,1] = ""
+    matrixBinaryAro[1,0] = ""
+    matrixBinaryAro[1,1] = ""
+    sum = 0
     for refARO in referenceVariants.keys():
+        #refARO is a list
+        referenceVariants[refARO] = [list(x) for x in set(tuple(x) for x in referenceVariants[refARO] )]
         for refVariant in referenceVariants[refARO]:
-            for detectedVariant in detectedVariants[refARO]:
-                refNumbers = re.findall( '(\d+)', refVariant[2])
-                detectedNumbers = re.findall( '(\d+)', detectedVariant[2])
+            refPosition = list(set(re.findall( '(\d+)', refVariant[2])))
+            detected = [x for x in detectedVariants[refARO] if list(set(re.findall( '(\d+)', x[2]))) == refPosition ]
+            
+            if (len(detected) > 1):
+                expected = [x.split(":")[1] for x in refVariant[2].strip().split(";") if x]
+                expected = [x.replace("U", "T") for x in expected]
+                expected.sort()
+                found = False
+                for i in detected:
+                    bases = [x[-1] for x in i[2].split(";")]
+                    bases = [x.replace("*", "STOP") for x in bases]
+                    bases.sort()
+                    if expected == bases:
+                        matrixBinary[keyDictionary[refVariant[0]],keyDictionary[i[1]]] += 1 
+                        label = refARO + "|" + refVariant[2] + "|" + detectedVariant[2] #+ "|" + detectedVariant[3]
+                        matrixBinaryAro[keyDictionary[refVariant[0]],keyDictionary[i[1]]] = matrixBinaryAro[keyDictionary[refVariant[0]],keyDictionary[i[1]]] + str(label) + ";"
+                        found = True
+                if(found == False):
+                    #likely a wildtype because the mutant base is not found.
+                    if (refVariant[0]=="wt"):
+                        matrixBinary[keyDictionary[refVariant[0]],0] += 1 
+                        label = refARO + "|" + refVariant[2] + "|" + detectedVariant[2] #+ "|" + detectedVariant[3]
+                        matrixBinaryAro[keyDictionary[refVariant[0]],0] = matrixBinaryAro[keyDictionary[refVariant[0]],0] + str(label) + ";"
+                    else:
+                        #a resist type not ID'd
+                        matrixBinary[keyDictionary[refVariant[0]],0] += 1 
+                        label = refARO + "|" + refVariant[2] + "|" + detectedVariant[2] #+ "|" + detectedVariant[3]
+                        matrixBinaryAro[keyDictionary[refVariant[0]],0] = matrixBinaryAro[keyDictionary[refVariant[0]],0] + str(label) + ";"
+        
+                        #print(refVariant)
+                        #print(detected)
+            elif(len(detected) == 1):
+                detectedVariant = detected[0]
+                matrixBinary[keyDictionary[refVariant[0]],keyDictionary[detectedVariant[1]]] += 1 
+                label = refARO + "|" + refVariant[2] + "|" + detectedVariant[2] #+ "|" + detectedVariant[3]
+                matrixBinaryAro[keyDictionary[refVariant[0]],keyDictionary[detectedVariant[1]]] = matrixBinaryAro[keyDictionary[refVariant[0]],keyDictionary[detectedVariant[1]]] + str(label) + ";"
+            else:
+                print("notfound")
+            sum += 1
+    totalRes = len([x for x in referenceVariants.values() if x[0][0] == "mut"])
+    totalGroundTruth = sum
+    
+    #df = pd.DataFrame(matrixBinary)
+    #df.columns = ["Non-Resistant", "Resistant"]
+    #df["Truth\\Pred"] = ["Non-Resistant", "Resistant"]
+    #df = df.set_index("Truth\\Pred")
+    #df.to_csv("accuracy.tsv", sep ='\t', header = True , index = True)
 
-                if (refNumbers == detectedNumbers):
-                    matrix[keyDictionary[refVariant[0]],keyDictionary[detectedVariant[0]]] += 1 
-                    label = refARO + "|" + refVariant[2] + "|" + detectedVariant[2] #+ "|" + detectedVariant[3]
-                    print(label)
-                    matrixAro[keyDictionary[refVariant[0]],keyDictionary[detectedVariant[0]]] = str(matrixAro[keyDictionary[refVariant[0]],keyDictionary[detectedVariant[0]]]) + str(label)
-                # print("test")
+    #df = pd.DataFrame(matrixBinaryAro)
+    #df.columns = ["Non-Resistant", "Resistant"]
+    #df["Truth\\Pred"] = ["Non-Resistant", "Resistant"]
+    #df = df.set_index("Truth\\Pred")
+    #df.to_csv("accuracy_aro.tsv", sep ='\t', header = True , index = True)
 
-    df = pd.DataFrame(matrix)
-    df.columns = ["Wildtype", "ResistantVariant", "OtherVariant", "NotFound", "Partial"]
-    df["Truth\\Pred"] = ["Wildtype", "ResistantVariant", "OtherVariant"]
-    df = df.set_index("Truth\\Pred")
-    df.to_csv("accuracy.tsv", sep ='\t', header = True , index = True)
+    matrix = AccuracyMetrics(matrixBinary[1,1], matrixBinary[0,0], matrixBinary[0,1], matrixBinary[1,0])
 
-    df = pd.DataFrame(matrixAro)
-    df.columns = ["Wildtype", "ResistantVariant", "OtherVariant", "NotFound","Partial"]
-    df["Truth\\Pred"] = ["Wildtype", "ResistantVariant", "OtherVariant"]
-    df = df.set_index("Truth\\Pred")
-    df.to_csv("accuracy_aro.tsv", sep ='\t', header = True , index = True)
+    return matrix, totalRes, totalGroundTruth
 
-
-#cardJsonPath = "/mnt/f/OneDrive/ProjectAMRSAGE/AMR_Metagenome_Simulator-master/full/card/card.json"
-#cardSnpPath = "/mnt/f/OneDrive/ProjectAMRSAGE/AMR_Metagenome_Simulator-master/full/card/snps.txt"
+#cardJsonPath = "/mnt/d/OneDrive/ProjectAMRSAGE/AMR_Metagenome_Simulator-master/full/card/card.json"
+#cardSnpPath = "/mnt/d/OneDrive/ProjectAMRSAGE/AMR_Metagenome_Simulator-master/full/card/snps.txt"
 
 #CARD = ParseCardData.ParseJson(cardJsonPath) 
 #proteinVariants, rnaVariants = ParseCardData.ParseSNP(cardSnpPath, CARD)
 
-#GenerateFasta()
-resultPath = "./out.tsv"
-fastaPath = "./SyntheticProteinVariants.fasta"
-CheckAccuracy(resultPath, fastaPath)
+
+#GenerateProteinSyntheticFasta(proteinVariants)
+#GenerateRRNASyntheticFasta(rnaVariants)
+
+#resultPath = "./out.tsv"
+#fastaPath = "./SyntheticProteinVariants.fasta"
+#CheckAccuracy(resultPath, fastaPath)
 #50 protein sequences of each of the following:
 # 1) wt
 # 2) mut
 # 3) other
-
+#matrix, totalRes, total = CheckAccuracy("synthetic.tsv", "SyntheticVariants.fasta")

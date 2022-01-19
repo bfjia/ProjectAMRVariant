@@ -1,7 +1,10 @@
+from DataTypes import AccuracyMetrics
 import ParseCardData
 import GenerateReqFiles
 import ParseVCF
 import argparse
+import GenerateSyntheticData
+import shutil
 
 
 
@@ -38,7 +41,35 @@ def main():
         type=str,
         help="output path for temp files",
     )
+    parser.add_argument(
+        "--protein-filter",
+        default=6,
+        type=float,
+        help="filter used for detecting protein variants",
+    )
+    parser.add_argument(
+        "--rna-filter",
+        default=6,
+        type=float,
+        help="filter used for detecting protein variants",
+    )
+    parser.add_argument(
+        "--mapping-quality-filter",
+        default=13,
+        type=int,
+        help="samtools filter used for finding variants",
+    )
+    parser.add_argument(
+        "-t",
+        "--threads",
+        default=8,
+        type=int,
+        help="output path for temp files",
+    )
     parser.add_argument("--overwrite", action="store_true", help="overwrite existing files.")
+    parser.add_argument("--max-precision", action="store_true", help="Parameters used to maximize precision")
+    parser.add_argument("--max-recall", action="store_true", help="Parameters used to maximize recall.")
+
     args = parser.parse_args()
 
     
@@ -46,6 +77,29 @@ def main():
     cardSnpPath = args.card_snp #/mnt/f/OneDrive/ProjectAMRSAGE/AMR_Metagenome_Simulator-master/full/card/snps.txt"
     forward = args.forward
     reverse = args.reverse
+    if (args.max_precision):
+        filterDict = {"filterMAPQProtein":9, 
+                        "filterAbsoluteProtein":0, 
+                        "filterRelativeProtein":5.6,
+                        "filterMAPQRNA": 9,
+                         "filterAbsoluteRNA":4, 
+                         "filterRelativeRNA": 0.5}
+    elif (args.max_recall):
+        filterDict = {"filterMAPQProtein":3, 
+                    "filterAbsoluteProtein":0, 
+                    "filterRelativeProtein":0,
+                    "filterMAPQRNA": 3,
+                    "filterAbsoluteRNA":0, 
+                    "filterRelativeRNA":0}
+
+    else:
+        filterDict = {"filterMAPQProtein":9, 
+            "filterAbsoluteProtein":0, 
+            "filterRelativeProtein":5.6,
+            "filterMAPQRNA": 9,
+            "filterAbsoluteRNA":4, 
+            "filterRelativeRNA":0.2}
+
     
     #forward = "/mnt/f/OneDrive/ProjectAMRSAGE/synthetic_1.fq.gz"
     #reverse = "/mnt/f/OneDrive/ProjectAMRSAGE/synthetic_2.fq.gz"
@@ -58,18 +112,48 @@ def main():
     generator = GenerateReqFiles.GenerateReqFiles(forward, reverse, outputDir=args.temp)
 
     generator.GenerateReferenceFasta(variantsCollection)
-    generator.Bowtie2Align()
+    generator.Bowtie2Align(args.threads)
     generator.SAMtoSortedBAM()
-    generator.GenerateVariantFiles()
+    generator.GenerateVariantFiles(quality=filterDict["filterMAPQProtein"])
+    generator.GenerateUnfilteredVariantSummary(variantsCollection)
+    
+    with open (args.temp + "/results.tsv", 'r') as f:
+        unfilteredResult = f.readlines()
 
-    vcfPath = "{}/variants.pileup".format(args.temp)
-    with open(vcfPath, "r") as f:
-        vcfFile = f.readlines()
+    def FilterProteinVariants(unfilteredResult, filterDict):
+        for i in range(len(unfilteredResult)):
+            line = unfilteredResult[i].strip().split("\t")
+            if (line[1].find("rna") > -1):
+                if line[3] == "Resistant Variant":
+                    #apply logic here
+                    abs = min([float(x) for x in line[6].strip().split(";")])
+                    rel = min([float(x) for x in line[7].strip().replace("%","").split(";")])
 
-    output = ParseVCF.ParseVcfForVariants(variantsCollection, vcfFile)
-    with open ("./variants.tsv", 'w') as f:
-        f.write("\n".join(output))
+                    if (abs < filterDict["filterAbsoluteRNA"] or rel < filterDict["filterRelativeRNA"] ):
+                        line[3] = "False"
+                    else:
+                        line[3] = "True"
+                else:
+                    line[3] = "False"
+            elif (line[1].find("protein") > -1):
+                if line[3] == "Resistant Variant":
+                    #apply logic here
+                    abs = min([float(x) for x in line[6].strip().split(";")])
+                    rel = min([float(x) for x in line[7].strip().replace("%","").split(";")])
 
+                    if (abs < filterDict["filterAbsoluteProtein"] or rel < filterDict["filterRelativeProtein"] ):
+                        line[3] = "False"
+                    else:
+                        line[3] = "True"
+                else:
+                    line[3] = "False"
+            unfilteredResult[i] = "\t".join(line)
+        unfilteredResult = [x for x in unfilteredResult if x.find("True") > -1]
+        with open (args.temp + "_DetectedVariants.tsv", 'w') as f:
+            f.write("ARO\tVariantClass\tVariantType\tResistantVariant\tSNP\tDepth\tAbsSupport\tRelativeSupport\tINFO\n")
+            f.write("\n".join(unfilteredResult))
+
+    FilterProteinVariants(unfilteredResult, filterDict)
 main()
 
 

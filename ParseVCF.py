@@ -12,44 +12,57 @@ def ParseVcfForVariants(variantCollection, vcfFile):
     tot = len(__variantCollection)
 
     output=[]
-    output.append("ARO\tVariantType\tMutationType\tClassification\tSNP\tDepth\tAbs_Support\t%_Support\tINFO")
+    output.append("ARO\tVariantType\tMutationType\tResistantVariant\tSNP\tDepth\tAbs_Support\t%_Support\tINFO")
     for variant in __variantCollection:
         #scan the VCF file for this variant and checks if it exists. 
-        print(str(cur) + "/" + str(tot))
+        if (cur%250==0):
+            print(str(cur) + "/" + str(tot))
         #variant = variant.FindIndelInVCF(vcfFile)
         variant = variant.FindVariantInPileup(vcfFile)
         classification, detectedSnp = variant.mutType.ClassifySNP(variant)
-        
+        debug = ""
+
         if (detectedSnp == None):
             detectedSnp = [] 
-
+#        if (variant.aro.aro == 3003394 and str(variant.mutType) == "Frameshift" and classification == "Resistant Variant"):
+#            print("this")
         if (len(detectedSnp) > 0):
             if (any(isinstance(i, list) for i in detectedSnp)):
                 countOut = ""
                 percentOut = ""
-                for group in detectedSnp:
-                    counts = {"Wildtype":[], "Resistant Variant":[], "Other Variant" :[]}
-                    percent = {"Wildtype":[], "Resistant Variant":[], "Other Variant" :[]}         
-                    totalDepth = 0
+                counts = {"Wildtype":[], "Resistant Variant":[], "Other Variant" :[]}
+                percent = {"Wildtype":[], "Resistant Variant":[], "Other Variant" :[]}      
+                counts["Wildtype"] = [0] * len(detectedSnp)
+                counts["Resistant Variant"] = [0] * len(detectedSnp)
+                counts["Other Variant"] = [0] * len(detectedSnp)
+                idx = 0
+                totalDepth = 0
+                for group in detectedSnp: #group represents 1 of the variants in a multi variant situation
                     if (group):
-                        for snp in group:
-                            counts["Wildtype"] = [0] * len(detectedSnp)
-                            counts["Resistant Variant"] = [0] * len(detectedSnp)
-                            counts["Other Variant"] = [0] * len(detectedSnp)
-
-
+                        for snp in group: #codons in a variant
                             totalDepth = int(snp.totalDepth)
                             for i in range(len(variant.snp)):
-                                if (snp.mut == variant.snp[i].mut):
-                                    counts["Resistant Variant"][i] += snp.depth
-                                elif (snp.mut == variant.snp[i].wt):
-                                    counts["Wildtype"][i] += snp.depth
-                            for i in range(len(variant.snp)):
-                                counts["Other Variant"][i] = totalDepth - counts["Resistant Variant"][i] - counts["Wildtype"][i] 
+                                if (snp.position == variant.snp[i].position):
+                                    if (snp.mut == "Indel"):
+                                        counts["Resistant Variant"][idx] += snp.depth
+                                        debug = debug + snp.type + ":" + ";".join(list(set(snp.sequences))) + ";"
+                                    else:
+                                        if (snp.mut == variant.snp[i].mut):
+                                            counts["Resistant Variant"][idx] += snp.depth
+                                        elif (snp.mut == variant.snp[i].wt):
+                                            counts["Wildtype"][idx] += snp.depth
+                                        else:
+                                            counts["Other Variant"][idx] += snp.depth
+                                        debug = debug + snp.mut + ":" + str(snp.depth) + ";"
+                        #for i in range(len(variant.snp)):
+                         #   counts["Other Variant"][i] = totalDepth - counts["Resistant Variant"][i] - counts["Wildtype"][i] 
+                    idx += 1
 
-                        for key in counts.keys():
-                            percent[key] = [ str(round((int(x)*100)/totalDepth,2)) for x in counts[key]]
-                            counts[key] = [str(x) for x in counts[key]]
+                debug = debug[:-1] + ","
+                for key in counts.keys():
+                    percent[key] = [ str(round((int(x)*100)/totalDepth,2)) for x in counts[key]]
+                    counts[key] = [str(x) for x in counts[key]]
+
                     
                 if (classification == "Partial"):
                     countOut = countOut + ";".join(counts["Resistant Variant"])
@@ -58,8 +71,7 @@ def ParseVcfForVariants(variantCollection, vcfFile):
                     #percentOut = percentOut +  "[wt:" + ";".join(counts["Wildtype"]) + ",res:" + ";".join(counts["Resistant Variant"]) + ",other:" + ";".join(counts["Other Variant"]) + "]"
                 else:
                     countOut = countOut + ";".join(counts[classification]) 
-                    percentOut = percentOut + ";".join(counts[classification]) + "%"
-                debug = ""
+                    percentOut = percentOut + ";".join(percent[classification]) + "%"
 
             else:
                 counts = {"Wildtype":0, "Resistant Variant":0, "Other Variant" :0}
@@ -67,10 +79,15 @@ def ParseVcfForVariants(variantCollection, vcfFile):
                 totalDepth = 0
                 for snp in detectedSnp:
                     totalDepth = int(snp.totalDepth)
-                    if (snp.mut == variant.snp[0].mut):
-                        counts["Resistant Variant"] += snp.depth
-                    elif (snp.mut == variant.snp[0].wt):
-                        counts["Wildtype"] += snp.depth
+                    if (snp.position == variant.snp[0].position):
+                        if (snp.mut == "Indel"):
+                            counts["Resistant Variant"] += snp.depth
+                            debug = debug + snp.type + ":" + ";".join(list(set(snp.sequences))) + ";"
+                        else:
+                            if (snp.mut == variant.snp[0].mut):
+                                counts["Resistant Variant"] += snp.depth #if there are multiple instances of a codon, the sum might be bigger than the depth
+                            elif (snp.mut == variant.snp[0].wt):
+                                counts["Wildtype"] += snp.depth
                 counts["Other Variant"] = totalDepth - counts["Resistant Variant"] - counts["Wildtype"]
                 for key in counts.keys():
                     percent[key] = str(round(((counts[key] / totalDepth) * 100),2)) + "%"

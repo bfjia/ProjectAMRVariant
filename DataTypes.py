@@ -5,8 +5,77 @@ Structs for storing CARD database, SNP information, Variant information, Mutatio
 """
 
 import itertools
+import re
 from Bio.Seq import Seq
-from numpy.lib.utils import deprecate_with_doc
+import math
+import numpy
+
+
+class AccuracyMetrics():
+    def __init__(self, TP, TN, FP, FN) -> None:
+        self.tp = numpy.float64(TP)
+        self.tn = numpy.float64(TN)
+        self.fp = numpy.float64(FP)
+        self.fn = numpy.float64(FN)
+
+    def GetTPR(self):
+        #sensitivity, recall, hit rate, true positive rate
+        return self.tp/(self.tp + self.fn)
+    
+    def GetTNR(self):
+        #specificity, true negative rate
+        return self.tn/(self.tn+self.fp)
+    
+    def GetPPV(self):
+        #precision, positive predictive value
+        return self.tp/(self.tp+self.fp)
+
+    def GetNPV(self):
+        #negative predictive value
+        return self.tn/(self.tn+self.fn)
+    
+    def GetFNR(self):
+        #miss rate, false negative rate
+        return self.fn/(self.fn+self.tp)
+    
+    def GetFPR(self):
+        #fall out rate or false positive rate
+        return self.fp/(self.fp+self.tn)
+    
+    def GetFDR(self):
+        #false discovery rate
+        return self.fp/(self.fp/self.tp)
+    
+    def GetFOR(self):
+        #false omission rate
+        return self.fn/(self.fn+self.tn)
+    
+    def GetAccuracy(self):
+        return (self.tp+self.tn) / (self.tp+self.tn+self.fp+self.fn)
+    
+    def GetF1(self):
+        return  (2 * self.tp) / (2*self.tp + self.fp+self.fn)
+    
+    def GetMCC(self):
+        return (self.tp*self.tn - self.fp*self.fn)/math.sqrt((self.tp+self.fp) + (self.tp+self.fn) + (self.tn+self.fp) + (self.tn+self.fn))
+
+    def GetFM(self):
+        #fm index
+        return math.sqrt(self.GetPPV() / self.GetTPR())
+    
+    def GetAllMetrics(self):
+        header = ["TP", "TN", "FP", "FN", "TPR", "TNR", "PPV", "NPV", "FNR", "FPR","FDR","FOR","Accuracy", "F1", "FM", "MCC" ]
+        values = [self.tp, self.tn, self.fp, self.fn, self.GetTPR(), self.GetTNR(), self.GetPPV(), self.GetNPV(), self.GetFNR(), self.GetFPR(), self.GetFDR(), self.GetFOR(), self.GetAccuracy(), self.GetF1(), self.GetFM(), self.GetMCC()]
+        return values, header
+
+    def WriteConfusionMatrix(self, filename, col=["Positive", "Negative"], row=["Positive", "Negative"]):
+        output = [
+            "Truth\\Pred\t" + "\t".join(col),
+            "\t".join([row[0], self.tp, self.fn]),
+            "\t".join([row[1], self.fp, self.tn])
+        ]
+        with open (filename, 'w') as f:
+            f.writelines(output)
 
 #structure for storing useful information from CARD.json
 class ARO:
@@ -17,6 +86,9 @@ class ARO:
         self.species = species
         self.dna = dna
         self.protein = protein
+    
+    def GetARO(self):
+        return str(self.aro)
 
 #structure for sotring snps
 class SNP:
@@ -53,6 +125,9 @@ class Variant:
         self.snp = snp
         self.detectedSnp = detectedSnp
         self.detectedIndel = detectedIndel
+    
+    def Export(self) -> str:
+        return("{}\t{}\t{}\t{}\t{}\n".format(str(self.aro.aro), self.geneType, self.mutType, ",".join([str(x) for x in self.snp]), self.aro.dna))
 
     def SetDetectedSnp(self, snp):
         self.detectedSnp = snp
@@ -89,13 +164,13 @@ class Variant:
                     types[ref] += 1
                     string = string[1:]
                 elif string[1] == '+': 
-                    insertionLength = int(list(filter(str.isdigit, (string[2:5])))[0]) #hack for double+ digit insertion length
+                    insertionLength = int(re.match("([0-9]*)",string[2:]).groups()[0])#int(list(filter(str.isdigit, (string[2:5])))[0]) #hack for double+ digit insertion length
                     insertionSeq = string[3:3+ insertionLength]
                     types['ins'].append(insertionSeq)
                     types['+'] += 1
                     string = string[3+insertionLength:]
                 elif string[1] == '-':
-                    deletionLength = int(list(filter(str.isdigit, (string[2:5])))[0])
+                    deletionLength = int(re.match("([0-9]*)",string[2:]).groups()[0])
                     deletionSeq = string[3:3+deletionLength]
                     types['del'].append(deletionSeq)
                     types['-'] += 1
@@ -108,8 +183,21 @@ class Variant:
             else:
                 # unrecognized character
                 # or a read that reports a substitition followed by an insertion/deletion
-                types['X'].append(string[0])
-                string = string[1:]
+                if (string[1] == "-"):
+                    deletionLength = int(re.match("([0-9]*)",string[2:]).groups()[0])
+                    deletionSeq = string[3:3+deletionLength]
+                    types['del'].append(deletionSeq)
+                    types['-'] += 1
+                    string = string[3+deletionLength:]
+                elif (string[1] == "+"):
+                    insertionLength = int(re.match("([0-9]*)",string[2:]).groups()[0])#int(list(filter(str.isdigit, (string[2:5])))[0]) #hack for double+ digit insertion length
+                    insertionSeq = string[3:3+ insertionLength]
+                    types['ins'].append(insertionSeq)
+                    types['+'] += 1
+                    string = string[3+insertionLength:]
+                else:
+                    types['X'].append(string[0])
+                    string = string[1:]
         return types
     
     #returns a list of class:SNPs at position X
@@ -168,13 +256,21 @@ class Variant:
     """
     def GetType(self):
         return self.geneType
+    
+    def GetMutType(self):
+        return str(self.mutType)
         
     def __str__(self) -> str:
-        return(self.geneType.capitalize() + ":" + self.mutType.capitalize())
+        return(str(self.geneType).capitalize() + ":" + str(self.mutType).capitalize())
 
 #child of Variant class specific for RNA variants
 class RNAVariant(Variant):
     def __init__(self, aro, snp, mutType):
+        for s in snp:
+            if (s.mut.lower() == "u"):
+                s.mut = "T"
+            if (s.wt.lower() == "u"):
+                s.wt = "T"
         Variant.__init__(self, aro, snp, mutType, "rna variant")
 
 
@@ -185,12 +281,22 @@ class RNAVariant(Variant):
 
         for snp in self.snp:
             relevantSNP = [x for x in pileup if x.startswith("{}\t{}\t".format(str(self.aro.aro), str(int(snp.position))))]
+            indelSnp = [x for x in pileup if x.startswith("{}\t{}\t".format(str(self.aro.aro), str(int(snp.position)-1)))]
+            
+            base0indel = []
+            base1indel = []
+            
             if (relevantSNP):
                 for s in self.ParsePileupForSNPs(relevantSNP, snp):
                     if (s.IsIndel()):
-                        detectedIndels.append(s)
+                        base1indel.append(s)
                     else:
                         detectedSNPs.append(s)
+                for s in self.ParsePileupForSNPs(indelSnp, snp):
+                    if (s.IsIndel()):
+                        base0indel.append(s)
+            
+            detectedIndels.append([base0indel, base1indel])
 
         self.SetDetectedSnp(detectedSNPs)
         self.SetDetectedIndel(detectedIndels)
@@ -215,7 +321,8 @@ class RNAVariant(Variant):
                     else:
                         mut = data[4]
                     quality = float(data[5])
-                    info = data[7].replace(".","0").split(";")
+                    info = data[7].replace(".","0").spl
+                    it(";")
                     dp = int([x for x in info if x.startswith("DP=")][0].replace("DP=",""))
                     dp4 = list(map(int, list(([x for x in info if x.startswith("DP4=")][0].replace("DP4=","").split(",")))))
                     mq = int([x for x in info if x.startswith("MQ=")][0].replace("MQ=",""))
@@ -237,11 +344,13 @@ class ProteinVariant(Variant):
             base1 = [x for x in pileup if x.startswith("{}\t{}\t".format(str(self.aro.aro), str(int(snp.position)*3-2)))]
             base2 = [x for x in pileup if x.startswith("{}\t{}\t".format(str(self.aro.aro), str(int(snp.position)*3-1)))]
             base3 = [x for x in pileup if x.startswith("{}\t{}\t".format(str(self.aro.aro), str(int(snp.position)*3)))]
-            
+            baseIndel = [x for x in pileup if x.startswith("{}\t{}\t".format(str(self.aro.aro), str(int(snp.position)*3-3)))]
+
             if (base1 and base2 and base3):
                 base1Snp = {}
                 base2Snp = {}
                 base3Snp = {}
+                base0Indel = []
                 base1Indel = []
                 base2Indel = []
                 base3Indel = []
@@ -261,15 +370,18 @@ class ProteinVariant(Variant):
                         base3Snp[b.mut] = b
                     else:
                         base3Indel.append(b)
-
-                detectedIndels.append([base1Indel, base2Indel, base3Indel])
+                for b in self.ParsePileupForSNPs(baseIndel, snp):
+                    if b.IsIndel():
+                        base0Indel.append(b)
+                if (base0Indel or base2Indel or base1Indel or base3Indel):
+                    detectedIndels.append([base0Indel, base1Indel, base2Indel, base3Indel])
 
                 combinations = list(itertools.product(*[base1Snp.keys(), base2Snp.keys(), base3Snp.keys()]))
                 for combo in combinations:
                     wt = snp.wt
                     codon = "".join(list(combo))
                     mut = str(Seq(codon).translate())
-                    lowestDepth = int((base1Snp[codon[0]].depth+ base2Snp[codon[1]].depth+ base3Snp[codon[2]].depth)/3)
+                    lowestDepth = min((base1Snp[codon[0]].depth, base2Snp[codon[1]].depth, base3Snp[codon[2]].depth))
                     maxTotalDepth = max (base1Snp[codon[0]].totalDepth, base2Snp[codon[1]].totalDepth, base3Snp[codon[2]].totalDepth)
                     detectedSNPs.append(SNP(wt, mut, snp.position, lowestDepth, maxTotalDepth, codon))
 
@@ -439,7 +551,7 @@ class SingleMutationType(MutationType):
                     else:
                         other = True
                         snpCollection.append(detectedSnp)
-            if(resistant):
+            if (resistant):
                 return "Resistant Variant", snpCollection
             elif (wildtype):
                 return "Wildtype", snpCollection
@@ -505,7 +617,7 @@ class MultipleMutationType(MutationType):
                 flags[i] = 1
                 detected[i] = snpCollection
             else:
-                return "???", None
+                return "Not Found", None
 
         f = list(set(flags))
         if (len(f) == 1):
@@ -612,19 +724,13 @@ class FrameshiftMutationType(MutationType):
             
 
         for cardSnp in variant.snp:
-            other = False
-            wildtype = False
-
-            for indel in variant.detectedIndel:
-                for i in range(3):
-                    if indel[i]:
-                        for detectedSnp in indel[i]:
-                            if detectedSnp.position == cardSnp.position:
-                                for sequence in detectedSnp.sequences:
-                                    if ((len(sequence) % 3) != 0):
-                                        return "Resistant Variant", indel
-
-            return "Wildtype", []
+            if (variant.detectedIndel):
+                for indel in variant.detectedIndel:
+                    for base in indel:
+                        if ((len(base) % 3) != 0):
+                            return "Resistant Variant", indel
+            else:
+                return "Wildtype", variant.detectedSnp
 
 
     
