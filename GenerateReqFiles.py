@@ -1,3 +1,4 @@
+from audioop import reverse
 import os
 from subprocess import Popen, PIPE, TimeoutExpired
 import DataTypes
@@ -77,7 +78,15 @@ class GenerateReqFiles:
         if not os.path.isfile(self.__SAMPath) or self.__OverWrite == True:   
             __CMD_index = "bowtie2-build {} {} --seed 25041".format(self.__referenceFastaPath, self.__referenceIndex)
             self.__RunCMD(__CMD_index)
-            __CMD_align = "bowtie2 -x {} -1 {} -2 {} --no-unal --seed 25041 --very-sensitive --threads {} > {}".format(self.__referenceIndex, self.__forwardPath, self.__reversePath, str(threads), self.__SAMPath)
+
+            if (self.__forwardPath != None and self.__reversePath!=None): #forward + reverse reads
+                __CMD_align = "bowtie2 -x {} -1 {} -2 {} --no-unal --seed 25041 --very-sensitive --threads {} > {}".format(self.__referenceIndex, self.__forwardPath, self.__reversePath, str(threads), self.__SAMPath)
+            elif (self.__forwardPath != None and self.__reversePath == None): #interleaved reads
+                __CMD_align = "bowtie2 -x {} --interleaved {} --no-unal --seed 25041 --very-sensitive --threads {} > {}".format(self.__referenceIndex, self.__forwardPath, str(threads), self.__SAMPath)
+            elif (self.__forwardPath==None and self.__reversePath != None): #unpaired reads
+                __CMD_align = "bowtie2 -x {} -U {} --no-unal --seed 25041 --very-sensitive --threads {} > {}".format(self.__referenceIndex, self.__forwardPath, str(threads), self.__SAMPath)
+            else:
+                raise Exception("FASTQ file type error.")
             self.__RunCMD(__CMD_align)
         else:
             print("using pre-existing SAM file at {}".format(self.__SAMPath))

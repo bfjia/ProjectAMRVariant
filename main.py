@@ -15,13 +15,29 @@ def main():
         "-f",
         "--forward",
         type=str,
+        default=None,
         help="forward fastq",
     )
     parser.add_argument(
         "-r",
         "--reverse",
         type=str,
+        default=None,
         help="reverse fastq path",
+    )
+    parser.add_argument(
+        "-i",
+        "--interleaved",
+        type=str,
+        default = None,
+        help="interleaved fastq path",
+    )    
+    parser.add_argument(
+        "-u",
+        "--unpaired",
+        type=str,
+        default = None,
+        help="interleaved fastq path",
     )
     parser.add_argument(
         "--card-snp",
@@ -71,12 +87,24 @@ def main():
     parser.add_argument("--max-recall", action="store_true", help="Parameters used to maximize recall.")
 
     args = parser.parse_args()
-
+    
+    if (args.forward != None and args.reverse!=None):
+        forward = args.forward
+        reverse = args.forward
+    elif (args.interleaved != None):
+        forward = args.interleaved
+        reverse = None       
+    elif (args.unpaired != None):
+        reverse = args.unpaired
+        forward = None
+    else:
+        print ("FASTQ filepath error")
+        return
     
     cardJsonPath = args.card_json #"/mnt/f/OneDrive/ProjectAMRSAGE/AMR_Metagenome_Simulator-master/full/card/card.json"
     cardSnpPath = args.card_snp #/mnt/f/OneDrive/ProjectAMRSAGE/AMR_Metagenome_Simulator-master/full/card/snps.txt"
-    forward = args.forward
-    reverse = args.reverse
+
+
     if (args.max_precision):
         filterDict = {"filterMAPQProtein":9, 
                         "filterAbsoluteProtein":0, 
@@ -91,7 +119,6 @@ def main():
                     "filterMAPQRNA": 3,
                     "filterAbsoluteRNA":0, 
                     "filterRelativeRNA":0}
-
     else:
         filterDict = {"filterMAPQProtein":9, 
             "filterAbsoluteProtein":0, 
@@ -100,9 +127,7 @@ def main():
             "filterAbsoluteRNA":4, 
             "filterRelativeRNA":0.2}
 
-    
-    #forward = "/mnt/f/OneDrive/ProjectAMRSAGE/synthetic_1.fq.gz"
-    #reverse = "/mnt/f/OneDrive/ProjectAMRSAGE/synthetic_2.fq.gz"
+
 
     CARD = ParseCardData.ParseJson(cardJsonPath) 
     proteinVariants, rnaVariants = ParseCardData.ParseSNP(cardSnpPath, CARD)
