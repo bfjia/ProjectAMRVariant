@@ -28,7 +28,9 @@ class GenerateReqFiles:
         self.__mpileupPath = self.__outputDir + "/variants.pileup"
         self.__vcfPath = self.__outputDir + "/variants.vcf"
         self.__resultPath = self.__outputDir + "/results.tsv"
-
+        self.__unmappedPath = self.__outputDir + "/unmapped.fastq"
+        self.__mappedPath = self.__outputDir + "/mapped.fastq"
+        
         #self.__pileupPath = self.__outputDir + "/pileups"
         #self.__depthPath = self.__outputDir + "/depths"
         #self.__hitsPath = self.__outputDir + "/hits"
@@ -80,11 +82,11 @@ class GenerateReqFiles:
             self.__RunCMD(__CMD_index)
 
             if (self.__forwardPath != None and self.__reversePath!=None): #forward + reverse reads
-                __CMD_align = "bowtie2 -x {} -1 {} -2 {} --no-unal --seed 25041 --very-sensitive --threads {} > {}".format(self.__referenceIndex, self.__forwardPath, self.__reversePath, str(threads), self.__SAMPath)
+                __CMD_align = "bowtie2 -x {} -1 {} -2 {} -a --no-unal --seed 25041 --very-sensitive-local --threads {} > {}".format(self.__referenceIndex, self.__forwardPath, self.__reversePath, str(threads), self.__SAMPath)
             elif (self.__forwardPath != None and self.__reversePath == None): #interleaved reads
-                __CMD_align = "bowtie2 -x {} --interleaved {} --no-unal --seed 25041 --very-sensitive --threads {} > {}".format(self.__referenceIndex, self.__forwardPath, str(threads), self.__SAMPath)
+                __CMD_align = "bowtie2 -x {} --interleaved {} --no-unal --seed 25041 --very-sensitive-local --threads {} > {}".format(self.__referenceIndex, self.__forwardPath, str(threads), self.__SAMPath)
             elif (self.__forwardPath==None and self.__reversePath != None): #unpaired reads
-                __CMD_align = "bowtie2 -x {} -U {} --no-unal --seed 25041 --very-sensitive --threads {} > {}".format(self.__referenceIndex, self.__forwardPath, str(threads), self.__SAMPath)
+                __CMD_align = "bowtie2 -x {} -U {} --no-unal --seed 25041 --very-sensitive-local --threads {} > {}".format(self.__referenceIndex, self.__forwardPath, str(threads), self.__SAMPath)
             else:
                 raise Exception("FASTQ file type error.")
             self.__RunCMD(__CMD_align)

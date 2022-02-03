@@ -1,4 +1,5 @@
 from enum import unique
+from unittest import result
 from Bio import SeqIO
 import os
 from DataTypes import AccuracyMetrics
@@ -315,15 +316,20 @@ def CheckAccuracy(resultTable, fastaPath):
         referenceVariants[refARO] = [list(x) for x in set(tuple(x) for x in referenceVariants[refARO] )]
         for refVariant in referenceVariants[refARO]:
             refPosition = list(set(re.findall( '(\d+)', refVariant[2])))
-            detected = [x for x in detectedVariants[refARO] if list(set(re.findall( '(\d+)', x[2]))) == refPosition ]
-            
+            if ("531" in refPosition):
+                print("test")
+            if (refARO in detectedVariants.keys()):
+                detected = [x for x in detectedVariants[refARO] if list(set(re.findall( '(\d+)', x[2]))) == refPosition]
+            else:
+                detected = []
+
             if (len(detected) > 1):
                 expected = [x.split(":")[1] for x in refVariant[2].strip().split(";") if x]
                 expected = [x.replace("U", "T") for x in expected]
                 expected.sort()
                 found = False
                 for i in detected:
-                    bases = [x[-1] for x in i[2].split(";")]
+                    bases = [x[-1].upper() for x in i[2].split(";")]
                     bases = [x.replace("*", "STOP") for x in bases]
                     bases.sort()
                     if expected == bases:
@@ -362,10 +368,10 @@ def CheckAccuracy(resultTable, fastaPath):
     #df = df.set_index("Truth\\Pred")
     #df.to_csv("accuracy.tsv", sep ='\t', header = True , index = True)
 
-    #df = pd.DataFrame(matrixBinaryAro)
-    #df.columns = ["Non-Resistant", "Resistant"]
-    #df["Truth\\Pred"] = ["Non-Resistant", "Resistant"]
-    #df = df.set_index("Truth\\Pred")
+    df = pd.DataFrame(matrixBinaryAro)
+    df.columns = ["Non-Resistant", "Resistant"]
+    df["Truth\\Pred"] = ["Non-Resistant", "Resistant"]
+    df = df.set_index("Truth\\Pred")
     #df.to_csv("accuracy_aro.tsv", sep ='\t', header = True , index = True)
 
     matrix = AccuracyMetrics(matrixBinary[1,1], matrixBinary[0,0], matrixBinary[0,1], matrixBinary[1,0])
@@ -382,9 +388,12 @@ def CheckAccuracy(resultTable, fastaPath):
 #GenerateProteinSyntheticFasta(proteinVariants)
 #GenerateRRNASyntheticFasta(rnaVariants)
 
-#resultPath = "./out.tsv"
-#fastaPath = "./SyntheticProteinVariants.fasta"
-#CheckAccuracy(resultPath, fastaPath)
+#resultPath = "./syntheticBalanced_DetectedVariants.tsv"
+#with open (resultPath , 'r') as f:
+#    variants = f.readlines()[1:]
+#fastaPath = "./sim/SyntheticProteinVariants.fasta"
+#test = CheckAccuracy(variants, fastaPath)
+#print(test)
 #50 protein sequences of each of the following:
 # 1) wt
 # 2) mut

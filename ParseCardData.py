@@ -89,7 +89,7 @@ def ParseSNP(snpPath, CARD):
                 raise Exception("Could not parse the SNP, {}".format(snp))
             
         except Exception as e:
-            print(str(e))
+            #print(str(e))
             with open("SNPParsingErrors.txt", "a") as f:
                 f.write(line.strip() + "\t" + str(e) + "\n")
             continue

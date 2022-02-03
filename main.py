@@ -90,7 +90,7 @@ def main():
     
     if (args.forward != None and args.reverse!=None):
         forward = args.forward
-        reverse = args.forward
+        reverse = args.reverse
     elif (args.interleaved != None):
         forward = args.interleaved
         reverse = None       
@@ -106,26 +106,26 @@ def main():
 
 
     if (args.max_precision):
-        filterDict = {"filterMAPQProtein":9, 
-                        "filterAbsoluteProtein":0, 
-                        "filterRelativeProtein":5.6,
-                        "filterMAPQRNA": 9,
-                         "filterAbsoluteRNA":4, 
-                         "filterRelativeRNA": 0.5}
+        filterDict = {"filterMAPQProtein":31, 
+                        "filterAbsoluteProtein":6, 
+                        "filterRelativeProtein":0,
+                        "filterMAPQRNA": 13,
+                         "filterAbsoluteRNA":0, 
+                         "filterRelativeRNA": 1}
     elif (args.max_recall):
-        filterDict = {"filterMAPQProtein":3, 
+        filterDict = {"filterMAPQProtein":0, 
                     "filterAbsoluteProtein":0, 
                     "filterRelativeProtein":0,
-                    "filterMAPQRNA": 3,
+                    "filterMAPQRNA": 19,
                     "filterAbsoluteRNA":0, 
                     "filterRelativeRNA":0}
     else:
-        filterDict = {"filterMAPQProtein":9, 
+        filterDict = {"filterMAPQProtein":5, 
             "filterAbsoluteProtein":0, 
-            "filterRelativeProtein":5.6,
-            "filterMAPQRNA": 9,
-            "filterAbsoluteRNA":4, 
-            "filterRelativeRNA":0.2}
+            "filterRelativeProtein":0,
+            "filterMAPQRNA": 19,
+            "filterAbsoluteRNA":0, 
+            "filterRelativeRNA":0}
 
 
 

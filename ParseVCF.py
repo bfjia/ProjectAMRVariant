@@ -17,6 +17,7 @@ def ParseVcfForVariants(variantCollection, vcfFile):
         #scan the VCF file for this variant and checks if it exists. 
         if (cur%250==0):
             print(str(cur) + "/" + str(tot))
+        
         #variant = variant.FindIndelInVCF(vcfFile)
         variant = variant.FindVariantInPileup(vcfFile)
         classification, detectedSnp = variant.mutType.ClassifySNP(variant)
@@ -36,11 +37,13 @@ def ParseVcfForVariants(variantCollection, vcfFile):
                 counts["Resistant Variant"] = [0] * len(detectedSnp)
                 counts["Other Variant"] = [0] * len(detectedSnp)
                 idx = 0
-                totalDepth = 0
+                totalDepth = 1
                 for group in detectedSnp: #group represents 1 of the variants in a multi variant situation
                     if (group):
                         for snp in group: #codons in a variant
                             totalDepth = int(snp.totalDepth)
+                            if (totalDepth == 0):
+                                totalDepth = 1
                             for i in range(len(variant.snp)):
                                 if (snp.position == variant.snp[i].position):
                                     if (snp.mut == "Indel"):
@@ -79,6 +82,10 @@ def ParseVcfForVariants(variantCollection, vcfFile):
                 totalDepth = 0
                 for snp in detectedSnp:
                     totalDepth = int(snp.totalDepth)
+                    if (totalDepth == 0):
+                        totalDepth= 1
+
+                        
                     if (snp.position == variant.snp[0].position):
                         if (snp.mut == "Indel"):
                             counts["Resistant Variant"] += snp.depth
