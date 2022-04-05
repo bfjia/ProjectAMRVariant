@@ -1,12 +1,6 @@
-from DataTypes import AccuracyMetrics
-import ParseCardData
-import GenerateReqFiles
-import ParseVCF
+from . import ParseCardData
+from . import GenerateReqFiles
 import argparse
-import GenerateSyntheticData
-import shutil
-
-
 
 def main():
     parser = argparse.ArgumentParser()
@@ -41,15 +35,21 @@ def main():
     )
     parser.add_argument(
         "--card-snp",
-        default="./snps.txt",
+        default=None,
         type=str,
         help="path to card snp",
     )
     parser.add_argument(
         "--card-json",
-        default="./card.json",
+        default=None,
         type=str,
         help="path to card json",
+    )
+    parser.add_argument(
+        "--card-version",
+        default=None,
+        type=str,
+        help="The URL or version string of CARD database to download.",
     )
     parser.add_argument(
         "--temp",
@@ -101,9 +101,18 @@ def main():
         print ("FASTQ filepath error")
         return
     
-    cardJsonPath = args.card_json #"/mnt/f/OneDrive/ProjectAMRSAGE/AMR_Metagenome_Simulator-master/full/card/card.json"
-    cardSnpPath = args.card_snp #/mnt/f/OneDrive/ProjectAMRSAGE/AMR_Metagenome_Simulator-master/full/card/snps.txt"
-
+    downloadCARD = False
+    if (args.card_json == None):
+        cardJsonPath = "./localDB/card.json"
+        downloadCARD = True
+    else:
+        cardJsonPath = args.card_json #"/mnt/f/OneDrive/ProjectAMRSAGE/AMR_Metagenome_Simulator-master/full/card/card.json"
+    
+    if (args.card_snp == None):
+        cardSnpPath = "./localDB/snps.txt"
+        downloadCARD = True
+    else:
+        cardSnpPath = args.card_snp #"/mnt/f/OneDrive/ProjectAMRSAGE/AMR_Metagenome_Simulator-master/full/card/card.json"
 
     if (args.max_precision):
         filterDict = {"filterMAPQProtein":31, 
@@ -127,8 +136,16 @@ def main():
             "filterAbsoluteRNA":0, 
             "filterRelativeRNA":0}
 
+    if (downloadCARD):
+        if (args.card_version == None):
+            ParseCardData.GetCardJsonFromWeb()
+        else:
+            if args.card_version.find("card.mcmaster.ca"):
+                ParseCardData.GetCardJsonFromWeb(downloadURL=args.card_version)
+            else:
+                ParseCardData.GetCardJsonFromWeb(version=args.card_version)
 
-
+  
     CARD = ParseCardData.ParseJson(cardJsonPath) 
     proteinVariants, rnaVariants = ParseCardData.ParseSNP(cardSnpPath, CARD)
     variantsCollection = (rnaVariants) + proteinVariants
@@ -179,6 +196,9 @@ def main():
             f.write("\n".join(unfilteredResult))
 
     FilterProteinVariants(unfilteredResult, filterDict)
-main()
+
+if __name__ == "__main__":
+    main()
+
 
 

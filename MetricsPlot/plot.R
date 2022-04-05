@@ -17,3 +17,13 @@ p<-ggplot(rnaMetrics, aes(x=FPR, y=TPR, label=Parameter)) +
  # geom_text(hjust=0, vjust=0, size = 2) + 
   ylim(0,1)
 ggsave("rna.png", p)
+
+datasetMatrix <- read_tsv("MockAssessmentMatrix.tsv", col_names = TRUE) %>% select (Class, Dataset, PPV, TPR)
+
+p <- ggplot (datasetMatrix, aes(x=TPR, y=PPV, color = Class, shape = Dataset)) +
+    geom_point(size = 5) +
+    scale_shape_manual(values = c(15,16,17,18))+
+    xlab("Recall") + 
+    ylab("Precision")
+
+ggsave("dataset.svg", p, width = 10, height = 5)

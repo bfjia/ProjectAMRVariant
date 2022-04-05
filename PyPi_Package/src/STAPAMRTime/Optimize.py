@@ -1,7 +1,7 @@
-from . import ParseCardData
-from . import GenerateReqFiles
-from . import argparse
-from . import GenerateSyntheticData
+import ParseCardData
+import GenerateReqFiles
+import argparse
+import GenerateSyntheticData
 
 
 def Optimize():
