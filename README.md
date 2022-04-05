@@ -26,22 +26,22 @@ Output: detected AMR SNPs
 
 Dependencies: biopython=1.72, numpy, pandas, bcftools, samtools, and bowtie2.
 
-It is suggested to run this program within a conda environment. These dependencies can be installed from `env.yaml` using `conda env create -f env.yaml`
+It is suggested to run this program within a conda environment. These dependencies can be installed from `conda-env.yaml` using `conda env create -f conda-env.yaml`
 
-Following environment installing, clone this repo into any directory and see `python main.py --help`
+Following environment installing, clone this repo into any directory and see `STAPAMRTime --help`
 
-At somepoint, this will be build into a conda package. 
+The tool itself is available via pip: `pip install STAPAMRTime`. Additional tool dependencies (bcftools, samtools, and bowtie2) must be installed seperately.
 
 ## Usage
 
-`python main.py --forward /path/to/forward.fq --reverse /path/to/reverse.fq --card-json /path/to/card.json --card-snp path/to/snps.txt`
+`STAPAMRTime --forward /path/to/forward.fq --reverse /path/to/reverse.fq --card-json /path/to/card.json --card-snp path/to/snps.txt`
 
 At somepoint, the default behavior for --card-json and --card-snp will be to download the latest copy from card.mcmaster.ca unless specified. For now, you must specify it's path.
 
 # Example
 See `test/` for examples. To run the workflow using these test files:
 
-`python main.py --forward ./test/synthetic_1.fq --reverse ./test/synthetic_2.fq --temp ./example --card-json ./test/card.json --card-snp ./test/snps.txt --max-recall`
+`STAPAMRTime --forward ./test/synthetic_1.fq --reverse ./test/synthetic_2.fq --temp ./example --card-json ./test/card.json --card-snp ./test/snps.txt --max-recall`
 
 This will generate an output folder called `example` and a result file called `example_DetectedVariants.tsv`
 
